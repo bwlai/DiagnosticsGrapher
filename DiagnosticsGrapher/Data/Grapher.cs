@@ -2,6 +2,7 @@
 using OxyPlot;
 using DiagnosticsGrapher;
 using System;
+using System.Windows;
 
 namespace DiagnosticsGrapher.Data
 {
@@ -20,38 +21,55 @@ namespace DiagnosticsGrapher.Data
 
     public class Grapher
     {
+        private static GraphViewModel<DateValue> graphViewModel;
+
         public static void StartUp()
         {
-            var data = DataParser.ParseXml(@"C:\Users\blai\AppData\Local\Colligo\Engage\Diagnostics\meow.txt");
+            graphViewModel = new GraphViewModel<DateValue>();
+            var graphWindow = new MainWindow();
 
-            List<Graph<DateValue>> graphs = new List<Graph<DateValue>>();
+            graphWindow.DataContext = graphViewModel;
+            graphWindow.SelectionChanged += graphViewModel.OnSelectionChanged;
+            graphWindow.DragDrop += OnDragDrop;
+            graphWindow.ComparisonChanged += graphViewModel.OnComparisonChanged;
 
-            double smallest = double.MaxValue;
+            graphWindow.ShowDialog();
+        }
 
-            foreach (var coordinates in data)
+        public static void OnDragDrop(object sender, System.Windows.DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
-                Graph<DateValue> graph = new Graph<DateValue>();
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
 
-                graph.Title = coordinates.Title;
-                
-                foreach (var coordinate in coordinates)
+                try
                 {
-                    graph.Add(new DateValue() { Date = coordinate.X, Value = coordinate.Y });
-                    var y = coordinate.Y;
-                    if (y < smallest && y != 0.0)
+                    var data = DataParser.ParseXml(files[0]);
+
+                    List<Graph<DateValue>> graphs = new List<Graph<DateValue>>();
+
+                    foreach (var coordinates in data)
                     {
-                        smallest = y;
+                        Graph<DateValue> graph = new Graph<DateValue>();
+
+                        graph.Title = coordinates.Title;
+
+                        foreach (var coordinate in coordinates)
+                        {
+                            graph.Add(new DateValue() { Date = coordinate.X, Value = coordinate.Y });
+                        }
+
+                        graphs.Add(graph);
                     }
-                    //graph.Add(new DataPoint(coordinate.Y, coordinate.Y));
+
+                    graphViewModel.Populate(graphs);
+                }
+                catch
+                {
+                    System.Console.WriteLine("Unable to parse file \"{0}\".", files[0]);
                 }
 
-                graphs.Add(graph);
             }
-
-            var graphViewModel = new GraphViewModel<DateValue>(graphs, smallest);
-            var graphWindow = new MainWindow();
-            graphWindow.DataContext = graphViewModel;
-            graphWindow.ShowDialog();
         }
     }
 }
